@@ -8,10 +8,10 @@
     <meta http-equiv="Cache-Control" content="no-store" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <link rel="manifest" href="./manifest.webmanifest?v=20260421-6" />
-    <link rel="icon" href="./icons/bbt-192.png?v=20260421-6" sizes="192x192" />
-    <link rel="apple-touch-icon" href="./icons/bbt-192.png?v=20260421-6" />
-    <link rel="stylesheet" href="./style.css?v=20260421-6" />
+    <link rel="manifest" href="./manifest.webmanifest?v=20260421-7" />
+    <link rel="icon" href="./icons/bbt-192.png?v=20260421-7" sizes="192x192" />
+    <link rel="apple-touch-icon" href="./icons/bbt-192.png?v=20260421-7" />
+    <link rel="stylesheet" href="./style.css?v=20260421-7" />
   </head>
   <body>
     <main class="app" id="app">
@@ -102,6 +102,24 @@
             </div>
 
             <div class="field">
+              <label class="field__label">同時に出る赤（個）</label>
+              <div class="field__row">
+                <input id="maxReds" class="range" type="range" min="1" max="6" step="1" value="3" />
+                <div class="field__value" id="maxRedsLabel">3</div>
+              </div>
+              <div class="field__hint">DSっぽさはここ。おすすめは 3〜4。</div>
+            </div>
+
+            <div class="field">
+              <label class="field__label">白の残り（秒）</label>
+              <div class="field__row">
+                <input id="whiteHoldSec" class="range" type="range" min="0.1" max="2.0" step="0.05" value="0.8" />
+                <div class="field__value" id="whiteHoldSecLabel">0.8s</div>
+              </div>
+              <div class="field__hint">押した感と“残像”の強さ。</div>
+            </div>
+
+            <div class="field">
               <label class="field__label">終了操作</label>
               <div class="field__hint">画面の「終了」を長押し、またはEscキー。</div>
             </div>
@@ -158,7 +176,7 @@
         </button>
 
         <div class="arena" id="arena" aria-label="タップエリア">
-          <button class="target" id="target" type="button" aria-label="ターゲット"></button>
+          <!-- targets are created dynamically -->
         </div>
       </section>
 
@@ -200,6 +218,6 @@
       </section>
     </main>
 
-    <script src="./app.js?v=20260421-6" defer></script>
+    <script src="./app.js?v=20260421-7" defer></script>
   </body>
 </html>

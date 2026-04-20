@@ -2,13 +2,13 @@
 
 const STORAGE_KEY = "bbt.history.v1";
 const STORAGE_SETTINGS_KEY = "bbt.settings.v1";
-const APP_VERSION = "20260421-6";
+const APP_VERSION = "20260421-7";
 const HIT_FEEDBACK_MS = 60;
 const MISS_FEEDBACK_MS = 60;
 
 /** @typedef {"free" | "timed"} Mode */
 
-/** @type {{mode: Mode, timedMinutes: number, tempoMax: number, accelSeconds: number, centerBias: number}} */
+/** @type {{mode: Mode, timedMinutes: number, tempoMax: number, accelSeconds: number, centerBias: number, targetLifeSec: number, maxReds: number, whiteHoldSec: number}} */
 let settings = {
   mode: "free",
   timedMinutes: 10,
@@ -16,6 +16,8 @@ let settings = {
   accelSeconds: 30,
   centerBias: 75,
   targetLifeSec: 2.0,
+  maxReds: 3,
+  whiteHoldSec: 0.8,
 };
 
 const DEFAULTS = {
@@ -56,12 +58,17 @@ const ui = {
   targetLifeSec: byId("targetLifeSec"),
   targetLifeSecLabel: byId("targetLifeSecLabel"),
 
+  maxReds: byId("maxReds"),
+  maxRedsLabel: byId("maxRedsLabel"),
+
+  whiteHoldSec: byId("whiteHoldSec"),
+  whiteHoldSecLabel: byId("whiteHoldSecLabel"),
+
   startBtn: byId("startBtn"),
   clearHistoryBtn: byId("clearHistoryBtn"),
   historyList: byId("historyList"),
 
   arena: byId("arena"),
-  target: byId("target"),
 
   tapCount: byId("tapCount"),
   missCount: byId("missCount"),
@@ -82,7 +89,10 @@ const ui = {
   backToSettingsBtn: byId("backToSettingsBtn"),
 };
 
-/** @type {{running: boolean, startNow: number, endNow: number | null, targetVisible: boolean, spawnTime: number, targetDeadline: number, nextSpawnTime: number, targetToken: number, lastHitTime: number | null, firstHitTime: number | null, tapCount: number, missCount: number, bestTempo: number, reachMaxAtMs: number | null, avgTempo: number}} */
+/**
+ * @typedef {{id: number, state: "red"|"white", spawnTime: number, deadline: number, el: HTMLButtonElement}} TargetState
+ */
+/** @type {{running: boolean, startNow: number, endNow: number | null, nextSpawnTime: number, tokenSeq: number, targets: Map<number, TargetState>, lastHitTime: number | null, firstHitTime: number | null, tapCount: number, missCount: number, bestTempo: number, reachMaxAtMs: number | null, avgTempo: number}} */
 let game = resetGame();
 
 let rafId = 0;
@@ -140,17 +150,33 @@ function init() {
     saveSettings();
   });
 
+  ui.maxReds.addEventListener("input", () => {
+    settings.maxReds = clampInt(parseInt(ui.maxReds.value, 10), 1, 6);
+    ui.maxRedsLabel.textContent = String(settings.maxReds);
+    saveSettings();
+  });
+
+  ui.whiteHoldSec.addEventListener("input", () => {
+    settings.whiteHoldSec = clampNumber(parseFloat(ui.whiteHoldSec.value), 0.1, 2.0);
+    ui.whiteHoldSecLabel.textContent = `${settings.whiteHoldSec.toFixed(2)}s`;
+    saveSettings();
+  });
+
   ui.startBtn.addEventListener("click", startGame);
 
-  ui.target.addEventListener("pointerdown", (e) => {
+  ui.arena.addEventListener("pointerdown", (e) => {
+    const t = /** @type {HTMLElement|null} */ (e.target);
+    if (!(t instanceof HTMLElement)) return;
+    const btn = t.closest(".target");
+    if (!(btn instanceof HTMLButtonElement)) return;
     e.preventDefault();
-    if (!game.running || !game.targetVisible) return;
-    ui.target.classList.add("is-pressed");
-    onHit();
+    if (!game.running) return;
+    const id = Number(btn.dataset.id);
+    if (!Number.isFinite(id)) return;
+    btn.classList.add("is-pressed");
+    onHit(id, btn);
+    btn.classList.remove("is-pressed");
   });
-  ui.target.addEventListener("pointerup", () => ui.target.classList.remove("is-pressed"));
-  ui.target.addEventListener("pointercancel", () => ui.target.classList.remove("is-pressed"));
-  ui.target.addEventListener("pointerleave", () => ui.target.classList.remove("is-pressed"));
 
   ui.exitHoldBtn.addEventListener("pointerdown", (e) => {
     e.preventDefault();
@@ -251,6 +277,10 @@ function applySettingsToUI() {
   ui.centerBiasLabel.textContent = `${settings.centerBias}%`;
   ui.targetLifeSec.value = String(settings.targetLifeSec);
   ui.targetLifeSecLabel.textContent = `${Number(settings.targetLifeSec).toFixed(1)}s`;
+  ui.maxReds.value = String(settings.maxReds);
+  ui.maxRedsLabel.textContent = String(settings.maxReds);
+  ui.whiteHoldSec.value = String(settings.whiteHoldSec);
+  ui.whiteHoldSecLabel.textContent = `${Number(settings.whiteHoldSec).toFixed(2)}s`;
 }
 
 function loadSettings() {
@@ -266,6 +296,8 @@ function loadSettings() {
       timedMinutes: clampInt(Number(parsed.timedMinutes ?? settings.timedMinutes), 1, 120),
       centerBias: clampInt(Number(parsed.centerBias ?? settings.centerBias), 0, 100),
       targetLifeSec: clampNumber(Number(parsed.targetLifeSec ?? settings.targetLifeSec), 0.1, 3.0),
+      maxReds: clampInt(Number(parsed.maxReds ?? settings.maxReds), 1, 6),
+      whiteHoldSec: clampNumber(Number(parsed.whiteHoldSec ?? settings.whiteHoldSec), 0.1, 2.0),
       mode: parsed.mode === "timed" ? "timed" : "free",
     };
   } catch {
@@ -282,11 +314,9 @@ function resetGame() {
     running: false,
     startNow: 0,
     endNow: null,
-    targetVisible: false,
-    spawnTime: 0,
-    targetDeadline: 0,
     nextSpawnTime: 0,
-    targetToken: 0,
+    tokenSeq: 0,
+    targets: new Map(),
     lastHitTime: null,
     firstHitTime: null,
     tapCount: 0,
@@ -313,8 +343,7 @@ function startGame() {
   ui.timeLeft.textContent = settings.mode === "timed" ? fmtMs(game.endNow - game.startNow) : "--:--";
   ui.exitHoldFill.style.width = "0%";
 
-  ui.target.classList.remove("is-hit", "is-missFlash", "is-pressed");
-  ui.target.classList.add("is-hidden");
+  clearArena();
   showScreen("play");
   startLoop();
 }
@@ -324,7 +353,7 @@ function finishGame(reason) {
   game.running = false;
   stopLoop();
   cancelHoldExit();
-  ui.target.classList.add("is-hidden");
+  clearArena();
 
   const summary = computeSummary();
   persistHistory(summary);
@@ -431,12 +460,12 @@ function loop(now) {
     game.reachMaxAtMs = now - game.startNow;
   }
 
-  if (!game.targetVisible && now >= game.nextSpawnTime) {
-    spawnTarget(now);
+  if (now >= game.nextSpawnTime) {
+    const interval = 1000 / Math.max(0.1, tTempo);
+    game.nextSpawnTime = now + interval;
+    maybeSpawn(now);
   }
-  if (game.targetVisible && now >= game.targetDeadline) {
-    onMiss(now);
-  }
+  expireTargets(now);
 
   rafId = requestAnimationFrame(loop);
 }
@@ -450,31 +479,59 @@ function tempoAt(elapsedSeconds) {
   return startTempo + (maxTempo - startTempo) * eased;
 }
 
-function spawnTarget(now) {
-  game.targetVisible = true;
-  game.spawnTime = now;
-  game.targetToken += 1;
-  ui.target.classList.remove("is-hit", "is-missFlash", "is-pressed");
-
-  const { x, y } = samplePointInArena();
-  ui.target.style.left = `${x}px`;
-  ui.target.style.top = `${y}px`;
-  ui.target.classList.remove("is-hidden");
-
-  const elapsed = (now - game.startNow) / 1000;
-  // 消える猶予（秒）は設定可能。DS寄せの調整はここでやる。
-  const life = Math.round(clampNumber(settings.targetLifeSec, 0.1, 3.0) * 1000);
-  game.targetDeadline = now + life;
+function maybeSpawn(now) {
+  const max = clampInt(settings.maxReds, 1, 6);
+  const redCount = countTargets("red");
+  if (redCount >= max) return;
+  spawnRed(now);
 }
 
-function onHit() {
-  const now = performance.now();
-  const elapsed = (now - game.startNow) / 1000;
-  const currentTargetTempo = tempoAt(elapsed);
-  const interval = 1000 / Math.max(0.1, currentTargetTempo);
+function countTargets(state) {
+  let n = 0;
+  for (const t of game.targets.values()) if (t.state === state) n += 1;
+  return n;
+}
 
-  const token = game.targetToken;
+function spawnRed(now) {
+  const id = ++game.tokenSeq;
+  const el = document.createElement("button");
+  el.type = "button";
+  el.className = "target";
+  el.setAttribute("aria-label", "ターゲット");
+  el.dataset.id = String(id);
+
+  const { x, y } = samplePointAvoidingOverlap();
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+
+  const life = Math.round(clampNumber(settings.targetLifeSec, 0.1, 3.0) * 1000);
+  const st = /** @type {TargetState} */ ({
+    id,
+    state: "red",
+    spawnTime: now,
+    deadline: now + life,
+    el,
+  });
+  game.targets.set(id, st);
+  ui.arena.appendChild(el);
+}
+
+function expireTargets(now) {
+  for (const t of Array.from(game.targets.values())) {
+    if (t.state === "red" && now >= t.deadline) {
+      game.missCount += 1;
+      ui.missCount.textContent = String(game.missCount);
+      flashMissAndRemove(t);
+    }
+  }
+}
+
+function onHit(id, btn) {
+  const t = game.targets.get(id);
+  if (!t || t.state !== "red") return;
+  const now = performance.now();
   pulseHaptic();
+
   game.tapCount += 1;
   ui.tapCount.textContent = String(game.tapCount);
 
@@ -491,39 +548,37 @@ function onHit() {
   }
   game.lastHitTime = now;
 
-  // DS寄せ: ヒットで白が“残る”感じ（残像）を作って、次はテンポ通りに出す
-  game.targetVisible = false;
-  ui.target.classList.remove("is-pressed");
-  ui.target.classList.add("is-hit");
-  const delay = HIT_FEEDBACK_MS;
-  leaveGhost();
+  t.state = "white";
+  btn.classList.add("is-hit");
+  btn.classList.remove("is-pressed");
+
+  const holdMs = Math.round(clampNumber(settings.whiteHoldSec, 0.1, 2.0) * 1000);
+  const token = t.id;
   setTimeout(() => {
-    if (game.targetToken !== token) return; // 次のターゲットに干渉しない
-    ui.target.classList.add("is-hidden");
-    ui.target.classList.remove("is-hit");
-  }, delay);
-  // 次はテンポ通り（押下フィードバックは残像で担保）
-  game.nextSpawnTime = now + Math.max(0, interval - (now - game.spawnTime));
+    const cur = game.targets.get(token);
+    if (!cur || cur.state !== "white") return;
+    removeTarget(cur);
+  }, holdMs);
 }
 
-function onMiss(now) {
-  if (!game.running || !game.targetVisible) return;
-  const token = game.targetToken;
-  game.missCount += 1;
-  ui.missCount.textContent = String(game.missCount);
-  game.targetVisible = false;
-
-  ui.target.classList.remove("is-pressed");
-  ui.target.classList.add("is-missFlash");
-  const delay = MISS_FEEDBACK_MS;
+function flashMissAndRemove(t) {
+  t.state = "white";
+  t.el.classList.add("is-missFlash");
+  const token = t.id;
   setTimeout(() => {
-    if (game.targetToken !== token) return; // 次のターゲットに干渉しない
-    ui.target.classList.add("is-hidden");
-    ui.target.classList.remove("is-missFlash");
-  }, delay);
+    const cur = game.targets.get(token);
+    if (!cur) return;
+    removeTarget(cur);
+  }, MISS_FEEDBACK_MS);
+}
 
-  // Missしたら即次（テンポ維持）
-  game.nextSpawnTime = now;
+function removeTarget(t) {
+  game.targets.delete(t.id);
+  try {
+    t.el.remove();
+  } catch {
+    // ignore
+  }
 }
 
 function pulseHaptic() {
@@ -534,17 +589,30 @@ function pulseHaptic() {
   }
 }
 
-function leaveGhost() {
-  const left = ui.target.style.left;
-  const top = ui.target.style.top;
-  if (!left || !top) return;
-  const ghost = document.createElement("div");
-  ghost.className = "ghost";
-  ghost.style.left = left;
-  ghost.style.top = top;
-  ui.arena.appendChild(ghost);
-  // remove after animation
-  setTimeout(() => ghost.remove(), 320);
+function samplePointAvoidingOverlap() {
+  const size = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--targetSize")) || 72;
+  const minDist = size * 1.1;
+  for (let i = 0; i < 28; i++) {
+    const p = samplePointInArena();
+    let ok = true;
+    for (const t of game.targets.values()) {
+      const x2 = parseFloat(t.el.style.left || "0");
+      const y2 = parseFloat(t.el.style.top || "0");
+      const dx = p.x - x2;
+      const dy = p.y - y2;
+      if (Math.hypot(dx, dy) < minDist) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) return p;
+  }
+  return samplePointInArena();
+}
+
+function clearArena() {
+  game.targets.clear();
+  ui.arena.innerHTML = "";
 }
 
 function samplePointInArena() {
