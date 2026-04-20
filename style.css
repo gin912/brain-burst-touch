@@ -254,29 +254,61 @@ body{
   width: var(--targetSize);
   height: var(--targetSize);
   border-radius: 12px;
-  border: 2px solid rgba(255,255,255,.15);
-  background: linear-gradient(180deg, rgba(239,68,68,1) 0%, rgba(239,68,68,.75) 100%);
-  box-shadow: 0 10px 32px rgba(239,68,68,.22);
+  /* DS寄せ: 太い外枠 + 黒い内枠 + 内側塗り（疑似要素で重ねる） */
+  border: 0;
+  background: transparent;
+  box-shadow: none;
   cursor:pointer;
   transform: translate(-50%, -50%);
   left: 50%;
   top: 50%;
-  transition: filter 80ms ease, box-shadow 80ms ease, transform 60ms ease;
+  transition: filter 80ms ease, transform 60ms ease;
+}
+.target::before{
+  content:"";
+  position:absolute;
+  inset: 0;
+  border-radius: 12px;
+  /* 外枠（赤） */
+  background:
+    linear-gradient(180deg, rgba(239,68,68,1) 0%, rgba(239,68,68,.78) 100%);
+  box-shadow: 0 10px 28px rgba(239,68,68,.18);
+}
+.target::after{
+  content:"";
+  position:absolute;
+  /* 内側の“塗り” + 黒リング */
+  inset: 10%;
+  border-radius: 9px;
+  background:
+    linear-gradient(180deg, rgba(239,68,68,1) 0%, rgba(239,68,68,.78) 100%);
+  box-shadow:
+    0 0 0 2px rgba(0,0,0,.92) inset,
+    0 0 0 2px rgba(0,0,0,.92);
 }
 .target.is-hit{
-  background: linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(255,255,255,.85) 100%);
-  box-shadow: 0 10px 32px rgba(255,255,255,.12);
-  border-color: rgba(255,255,255,.45);
+  filter: none;
+}
+.target.is-hit::before{
+  background: linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(255,255,255,.86) 100%);
+  box-shadow: 0 10px 28px rgba(255,255,255,.10);
+}
+.target.is-hit::after{
+  background: linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(255,255,255,.86) 100%);
 }
 .target.is-pressed{
   transform: translate(-50%, -50%) scale(0.965);
   filter: brightness(1.06);
-  box-shadow: 0 8px 26px rgba(239,68,68,.18);
 }
 .target.is-missFlash{
-  background: linear-gradient(180deg, rgba(239,68,68,.55) 0%, rgba(239,68,68,.25) 100%);
-  box-shadow: 0 10px 32px rgba(239,68,68,.10);
-  border-color: rgba(239,68,68,.55);
+  filter: saturate(0.85) brightness(0.95);
+}
+.target.is-missFlash::before{
+  background: linear-gradient(180deg, rgba(239,68,68,.62) 0%, rgba(239,68,68,.34) 100%);
+  box-shadow: 0 10px 28px rgba(239,68,68,.10);
+}
+.target.is-missFlash::after{
+  background: linear-gradient(180deg, rgba(239,68,68,.62) 0%, rgba(239,68,68,.34) 100%);
 }
 .target.is-hidden{ display:none; }
 .target:active{ transform: translate(-50%, -50%) scale(.98); }

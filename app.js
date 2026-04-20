@@ -2,7 +2,7 @@
 
 const STORAGE_KEY = "bbt.history.v1";
 const STORAGE_SETTINGS_KEY = "bbt.settings.v1";
-const APP_VERSION = "20260421-10";
+const APP_VERSION = "20260421-11";
 const HIT_FEEDBACK_MS = 60;
 const MISS_FEEDBACK_MS = 60;
 
