@@ -2,7 +2,9 @@
 
 const STORAGE_KEY = "bbt.history.v1";
 const STORAGE_SETTINGS_KEY = "bbt.settings.v1";
-const APP_VERSION = "20260421-4";
+const APP_VERSION = "20260421-5";
+const HIT_FEEDBACK_MS = 80;
+const MISS_FEEDBACK_MS = 80;
 
 /** @typedef {"free" | "timed"} Mode */
 
@@ -143,8 +145,12 @@ function init() {
   ui.target.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     if (!game.running || !game.targetVisible) return;
+    ui.target.classList.add("is-pressed");
     onHit();
   });
+  ui.target.addEventListener("pointerup", () => ui.target.classList.remove("is-pressed"));
+  ui.target.addEventListener("pointercancel", () => ui.target.classList.remove("is-pressed"));
+  ui.target.addEventListener("pointerleave", () => ui.target.classList.remove("is-pressed"));
 
   ui.exitHoldBtn.addEventListener("pointerdown", (e) => {
     e.preventDefault();
@@ -307,7 +313,7 @@ function startGame() {
   ui.timeLeft.textContent = settings.mode === "timed" ? fmtMs(game.endNow - game.startNow) : "--:--";
   ui.exitHoldFill.style.width = "0%";
 
-  ui.target.classList.remove("is-hit", "is-missFlash");
+  ui.target.classList.remove("is-hit", "is-missFlash", "is-pressed");
   ui.target.classList.add("is-hidden");
   showScreen("play");
   startLoop();
@@ -448,7 +454,7 @@ function spawnTarget(now) {
   game.targetVisible = true;
   game.spawnTime = now;
   game.targetToken += 1;
-  ui.target.classList.remove("is-hit", "is-missFlash");
+  ui.target.classList.remove("is-hit", "is-missFlash", "is-pressed");
 
   const { x, y } = samplePointInArena();
   ui.target.style.left = `${x}px`;
@@ -468,6 +474,7 @@ function onHit() {
   const interval = 1000 / Math.max(0.1, currentTargetTempo);
 
   const token = game.targetToken;
+  pulseHaptic();
   game.tapCount += 1;
   ui.tapCount.textContent = String(game.tapCount);
 
@@ -486,14 +493,16 @@ function onHit() {
 
   // DS寄せ: ヒットで白に変えてから次へ（体感はほぼ即）
   game.targetVisible = false;
+  ui.target.classList.remove("is-pressed");
   ui.target.classList.add("is-hit");
-  const delay = 50;
+  const delay = HIT_FEEDBACK_MS;
   setTimeout(() => {
     if (game.targetToken !== token) return; // 次のターゲットに干渉しない
     ui.target.classList.add("is-hidden");
     ui.target.classList.remove("is-hit");
   }, delay);
-  game.nextSpawnTime = now + Math.max(0, interval - (now - game.spawnTime));
+  // 最小限の押下フィードバック時間は保証する（白が見える）
+  game.nextSpawnTime = now + Math.max(delay, interval - (now - game.spawnTime));
 }
 
 function onMiss(now) {
@@ -503,8 +512,9 @@ function onMiss(now) {
   ui.missCount.textContent = String(game.missCount);
   game.targetVisible = false;
 
+  ui.target.classList.remove("is-pressed");
   ui.target.classList.add("is-missFlash");
-  const delay = 70;
+  const delay = MISS_FEEDBACK_MS;
   setTimeout(() => {
     if (game.targetToken !== token) return; // 次のターゲットに干渉しない
     ui.target.classList.add("is-hidden");
@@ -512,7 +522,15 @@ function onMiss(now) {
   }, delay);
 
   // Missしたら即次（テンポ維持）
-  game.nextSpawnTime = now;
+  game.nextSpawnTime = now + delay;
+}
+
+function pulseHaptic() {
+  try {
+    if (navigator.vibrate) navigator.vibrate(10);
+  } catch {
+    // ignore
+  }
 }
 
 function samplePointInArena() {
