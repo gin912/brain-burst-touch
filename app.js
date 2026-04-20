@@ -437,14 +437,9 @@ function spawnTarget(now) {
   ui.target.classList.remove("is-hidden");
 
   const elapsed = (now - game.startNow) / 1000;
-  // DS寄せ: 「消えるまでの猶予」はテンポとは別に、段階的に短くしていく。
-  // 最高速でも極端に短くしない（体感の遊びを残す）。
-  const a = clampNumber(settings.accelSeconds, 5, 120);
-  const progress = clampNumber(elapsed / a, 0, 1);
-  const eased = easeOutCubic(progress);
-  const lifeStart = 1600; // ms（序盤は余裕）
-  const lifeMin = 550; // ms（最高速でもこれ以上短くしない）
-  const life = Math.round(lerp(lifeStart, lifeMin, eased));
+  // 指定どおり: ターゲットは 1.0秒で消える（消える前にタッチする仕様）。
+  // DS寄せの段階カーブは後で戻せるが、まず体感を安定させる。
+  const life = 1000; // ms
   game.targetDeadline = now + life;
 }
 
