@@ -2,9 +2,9 @@
 
 const STORAGE_KEY = "bbt.history.v1";
 const STORAGE_SETTINGS_KEY = "bbt.settings.v1";
-const APP_VERSION = "20260421-5";
-const HIT_FEEDBACK_MS = 80;
-const MISS_FEEDBACK_MS = 80;
+const APP_VERSION = "20260421-6";
+const HIT_FEEDBACK_MS = 60;
+const MISS_FEEDBACK_MS = 60;
 
 /** @typedef {"free" | "timed"} Mode */
 
@@ -265,7 +265,7 @@ function loadSettings() {
       accelSeconds: clampInt(Number(parsed.accelSeconds ?? settings.accelSeconds), 5, 120),
       timedMinutes: clampInt(Number(parsed.timedMinutes ?? settings.timedMinutes), 1, 120),
       centerBias: clampInt(Number(parsed.centerBias ?? settings.centerBias), 0, 100),
-      targetLifeSec: clampNumber(Number(parsed.targetLifeSec ?? settings.targetLifeSec), 0.7, 3.0),
+      targetLifeSec: clampNumber(Number(parsed.targetLifeSec ?? settings.targetLifeSec), 0.1, 3.0),
       mode: parsed.mode === "timed" ? "timed" : "free",
     };
   } catch {
@@ -463,7 +463,7 @@ function spawnTarget(now) {
 
   const elapsed = (now - game.startNow) / 1000;
   // 消える猶予（秒）は設定可能。DS寄せの調整はここでやる。
-  const life = Math.round(clampNumber(settings.targetLifeSec, 0.7, 3.0) * 1000);
+  const life = Math.round(clampNumber(settings.targetLifeSec, 0.1, 3.0) * 1000);
   game.targetDeadline = now + life;
 }
 
@@ -491,18 +491,19 @@ function onHit() {
   }
   game.lastHitTime = now;
 
-  // DS寄せ: ヒットで白に変えてから次へ（体感はほぼ即）
+  // DS寄せ: ヒットで白が“残る”感じ（残像）を作って、次はテンポ通りに出す
   game.targetVisible = false;
   ui.target.classList.remove("is-pressed");
   ui.target.classList.add("is-hit");
   const delay = HIT_FEEDBACK_MS;
+  leaveGhost();
   setTimeout(() => {
     if (game.targetToken !== token) return; // 次のターゲットに干渉しない
     ui.target.classList.add("is-hidden");
     ui.target.classList.remove("is-hit");
   }, delay);
-  // 最小限の押下フィードバック時間は保証する（白が見える）
-  game.nextSpawnTime = now + Math.max(delay, interval - (now - game.spawnTime));
+  // 次はテンポ通り（押下フィードバックは残像で担保）
+  game.nextSpawnTime = now + Math.max(0, interval - (now - game.spawnTime));
 }
 
 function onMiss(now) {
@@ -522,7 +523,7 @@ function onMiss(now) {
   }, delay);
 
   // Missしたら即次（テンポ維持）
-  game.nextSpawnTime = now + delay;
+  game.nextSpawnTime = now;
 }
 
 function pulseHaptic() {
@@ -531,6 +532,19 @@ function pulseHaptic() {
   } catch {
     // ignore
   }
+}
+
+function leaveGhost() {
+  const left = ui.target.style.left;
+  const top = ui.target.style.top;
+  if (!left || !top) return;
+  const ghost = document.createElement("div");
+  ghost.className = "ghost";
+  ghost.style.left = left;
+  ghost.style.top = top;
+  ui.arena.appendChild(ghost);
+  // remove after animation
+  setTimeout(() => ghost.remove(), 320);
 }
 
 function samplePointInArena() {

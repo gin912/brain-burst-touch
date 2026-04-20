@@ -240,6 +240,24 @@ body{
   overflow:hidden;
 }
 
+.ghost{
+  position:absolute;
+  width: var(--targetSize);
+  height: var(--targetSize);
+  border-radius: 12px;
+  transform: translate(-50%, -50%);
+  pointer-events:none;
+  background: linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(255,255,255,.86) 100%);
+  border: 2px solid rgba(255,255,255,.45);
+  box-shadow: 0 10px 32px rgba(255,255,255,.10);
+  opacity: .95;
+  animation: ghostFade 280ms ease-out forwards;
+}
+@keyframes ghostFade{
+  0%{ opacity: .95; transform: translate(-50%, -50%) scale(1.0); }
+  100%{ opacity: 0; transform: translate(-50%, -50%) scale(1.03); }
+}
+
 .target{
   position:absolute;
   width: var(--targetSize);
