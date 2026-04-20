@@ -2,7 +2,7 @@
 
 const STORAGE_KEY = "bbt.history.v1";
 const STORAGE_SETTINGS_KEY = "bbt.settings.v1";
-const APP_VERSION = "20260421-3";
+const APP_VERSION = "20260421-4";
 
 /** @typedef {"free" | "timed"} Mode */
 
@@ -80,7 +80,7 @@ const ui = {
   backToSettingsBtn: byId("backToSettingsBtn"),
 };
 
-/** @type {{running: boolean, startNow: number, endNow: number | null, targetVisible: boolean, spawnTime: number, targetDeadline: number, nextSpawnTime: number, lastHitTime: number | null, firstHitTime: number | null, tapCount: number, missCount: number, bestTempo: number, reachMaxAtMs: number | null, avgTempo: number}} */
+/** @type {{running: boolean, startNow: number, endNow: number | null, targetVisible: boolean, spawnTime: number, targetDeadline: number, nextSpawnTime: number, targetToken: number, lastHitTime: number | null, firstHitTime: number | null, tapCount: number, missCount: number, bestTempo: number, reachMaxAtMs: number | null, avgTempo: number}} */
 let game = resetGame();
 
 let rafId = 0;
@@ -280,6 +280,7 @@ function resetGame() {
     spawnTime: 0,
     targetDeadline: 0,
     nextSpawnTime: 0,
+    targetToken: 0,
     lastHitTime: null,
     firstHitTime: null,
     tapCount: 0,
@@ -446,6 +447,7 @@ function tempoAt(elapsedSeconds) {
 function spawnTarget(now) {
   game.targetVisible = true;
   game.spawnTime = now;
+  game.targetToken += 1;
   ui.target.classList.remove("is-hit", "is-missFlash");
 
   const { x, y } = samplePointInArena();
@@ -465,6 +467,7 @@ function onHit() {
   const currentTargetTempo = tempoAt(elapsed);
   const interval = 1000 / Math.max(0.1, currentTargetTempo);
 
+  const token = game.targetToken;
   game.tapCount += 1;
   ui.tapCount.textContent = String(game.tapCount);
 
@@ -486,6 +489,7 @@ function onHit() {
   ui.target.classList.add("is-hit");
   const delay = 50;
   setTimeout(() => {
+    if (game.targetToken !== token) return; // 次のターゲットに干渉しない
     ui.target.classList.add("is-hidden");
     ui.target.classList.remove("is-hit");
   }, delay);
@@ -494,6 +498,7 @@ function onHit() {
 
 function onMiss(now) {
   if (!game.running || !game.targetVisible) return;
+  const token = game.targetToken;
   game.missCount += 1;
   ui.missCount.textContent = String(game.missCount);
   game.targetVisible = false;
@@ -501,6 +506,7 @@ function onMiss(now) {
   ui.target.classList.add("is-missFlash");
   const delay = 70;
   setTimeout(() => {
+    if (game.targetToken !== token) return; // 次のターゲットに干渉しない
     ui.target.classList.add("is-hidden");
     ui.target.classList.remove("is-missFlash");
   }, delay);
