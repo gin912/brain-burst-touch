@@ -437,9 +437,14 @@ function spawnTarget(now) {
   ui.target.classList.remove("is-hidden");
 
   const elapsed = (now - game.startNow) / 1000;
-  const tTempo = tempoAt(elapsed);
-  const interval = 1000 / Math.max(0.1, tTempo);
-  const life = clampNumber(interval * 1.1, 250, 1200);
+  // DS寄せ: 「消えるまでの猶予」はテンポとは別に、段階的に短くしていく。
+  // 最高速でも極端に短くしない（体感の遊びを残す）。
+  const a = clampNumber(settings.accelSeconds, 5, 120);
+  const progress = clampNumber(elapsed / a, 0, 1);
+  const eased = easeOutCubic(progress);
+  const lifeStart = 1600; // ms（序盤は余裕）
+  const lifeMin = 550; // ms（最高速でもこれ以上短くしない）
+  const life = Math.round(lerp(lifeStart, lifeMin, eased));
   game.targetDeadline = now + life;
 }
 
