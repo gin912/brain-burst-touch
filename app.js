@@ -2,7 +2,7 @@
 
 const STORAGE_KEY = "bbt.history.v1";
 const STORAGE_SETTINGS_KEY = "bbt.settings.v1";
-const APP_VERSION = "20260421-8";
+const APP_VERSION = "20260421-9";
 const HIT_FEEDBACK_MS = 60;
 const MISS_FEEDBACK_MS = 60;
 
@@ -222,6 +222,9 @@ function showScreen(which) {
   ui.screenSettings.classList.toggle("screen--active", which === "settings");
   ui.screenPlay.classList.toggle("screen--active", which === "play");
   ui.screenResult.classList.toggle("screen--active", which === "result");
+
+  const appRoot = document.getElementById("app");
+  if (appRoot) appRoot.classList.toggle("is-play", which === "play");
 
   ui.goSettingsBtn.style.visibility = which === "play" ? "hidden" : "visible";
   ui.modeLabel.textContent =

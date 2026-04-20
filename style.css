@@ -38,6 +38,14 @@ body{
   margin: 0 auto;
 }
 
+.app.is-play{
+  padding-top: calc(8px + var(--safeTop));
+  gap: 10px;
+}
+.app.is-play .topbar{
+  display:none;
+}
+
 .topbar{
   display:flex;
   align-items:center;
@@ -233,7 +241,7 @@ body{
 .arena{
   position: relative;
   flex:1;
-  height: calc(100svh - 150px);
+  height: calc(100svh - 120px);
   min-height: 420px;
   border-radius: 22px;
   border: 1px solid rgba(38,38,55,.6);
@@ -343,6 +351,6 @@ body{
   .hud{ flex-direction:column; align-items:stretch; }
   .hud__left{ justify-content:flex-start; }
   .hud__stat{ min-width: 0; flex: 0 0 auto; }
-  .arena{ height: calc(100svh - 190px); min-height: 380px; }
+  .arena{ height: calc(100svh - 150px); min-height: 380px; }
 }
 
