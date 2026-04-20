@@ -2,7 +2,7 @@
 
 const STORAGE_KEY = "bbt.history.v1";
 const STORAGE_SETTINGS_KEY = "bbt.settings.v1";
-const APP_VERSION = "20260421-1";
+const APP_VERSION = "20260421-2";
 
 /** @typedef {"free" | "timed"} Mode */
 
@@ -22,6 +22,7 @@ const DEFAULTS = {
 
 const ui = {
   modeLabel: byId("modeLabel"),
+  versionLabel: byId("versionLabel"),
 
   screenSettings: byId("screenSettings"),
   screenPlay: byId("screenPlay"),
@@ -90,7 +91,7 @@ function init() {
   applySettingsToUI();
   renderHistory();
 
-  ui.modeLabel.title = `v${APP_VERSION}`;
+  ui.versionLabel.textContent = `v${APP_VERSION}`;
 
   ui.goSettingsBtn.addEventListener("click", () => showScreen("settings"));
 
