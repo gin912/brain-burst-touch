@@ -2,7 +2,7 @@
 
 const STORAGE_KEY = "bbt.history.v1";
 const STORAGE_SETTINGS_KEY = "bbt.settings.v1";
-const APP_VERSION = "20260421-9";
+const APP_VERSION = "20260421-10";
 const HIT_FEEDBACK_MS = 60;
 const MISS_FEEDBACK_MS = 60;
 
@@ -141,7 +141,7 @@ function init() {
   });
 
   ui.centerBias.addEventListener("input", () => {
-    settings.centerBias = clampInt(parseInt(ui.centerBias.value, 10), 0, 100);
+    settings.centerBias = clampInt(parseInt(ui.centerBias.value, 10), 0, 200);
     ui.centerBiasLabel.textContent = `${settings.centerBias}%`;
     saveSettings();
   });
@@ -308,7 +308,7 @@ function loadSettings() {
       tempoMax: clampNumber(Number(parsed.tempoMax ?? settings.tempoMax), 3, 12),
       accelSeconds: clampInt(Number(parsed.accelSeconds ?? settings.accelSeconds), 5, 120),
       timedMinutes: clampInt(Number(parsed.timedMinutes ?? settings.timedMinutes), 1, 120),
-      centerBias: clampInt(Number(parsed.centerBias ?? settings.centerBias), 0, 100),
+      centerBias: clampInt(Number(parsed.centerBias ?? settings.centerBias), 0, 200),
       targetLifeSec: clampNumber(Number(parsed.targetLifeSec ?? settings.targetLifeSec), 0.1, 3.0),
       maxReds: clampInt(Number(parsed.maxReds ?? settings.maxReds), 1, 6),
       whiteHoldSec: clampNumber(Number(parsed.whiteHoldSec ?? settings.whiteHoldSec), 0.1, 2.0),
@@ -604,7 +604,7 @@ function applyTargetSizeCss() {
 function samplePointAvoidingOverlap() {
   const size = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--targetSize")) || 72;
   const minDist = size * 1.1;
-  for (let i = 0; i < 28; i++) {
+  for (let i = 0; i < 60; i++) {
     const p = samplePointInArena();
     let ok = true;
     for (const t of game.targets.values()) {
@@ -619,6 +619,7 @@ function samplePointAvoidingOverlap() {
     }
     if (ok) return p;
   }
+  // 最後は重なり回避を諦めてでも“端まで”出したい（バラけ優先）
   return samplePointInArena();
 }
 
@@ -638,15 +639,26 @@ function samplePointInArena() {
   const cy = h / 2;
 
   const maxR = Math.max(10, Math.min(w, h) / 2 - margin);
-  const bias = clampNumber(settings.centerBias, 0, 100) / 100;
-  const rFactor = lerp(1.0, 0.35, bias);
+  // 0%: ほぼ全域（中心寄り成分は残す） / 200%: かなり中央寄り
+  const bias = clampNumber(settings.centerBias, 0, 200) / 200;
+  const rFactor = lerp(1.0, 0.18, bias);
   const r = maxR * rFactor;
 
-  // Uniform in disk
-  const a = Math.random() * Math.PI * 2;
-  const rr = Math.sqrt(Math.random()) * r;
-  let x = cx + Math.cos(a) * rr;
-  let y = cy + Math.sin(a) * rr;
+  // biasが低いほど「矩形一様」寄りにして、角までバラける
+  const diskWeight = bias; // 0..1
+  const useDisk = Math.random() < diskWeight;
+
+  let x;
+  let y;
+  if (useDisk) {
+    const a = Math.random() * Math.PI * 2;
+    const rr = Math.sqrt(Math.random()) * r;
+    x = cx + Math.cos(a) * rr;
+    y = cy + Math.sin(a) * rr;
+  } else {
+    x = margin + Math.random() * (w - margin * 2);
+    y = margin + Math.random() * (h - margin * 2);
+  }
 
   x = clampNumber(x, margin, w - margin);
   y = clampNumber(y, margin, h - margin);
