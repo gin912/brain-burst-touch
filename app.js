@@ -2,7 +2,7 @@
 
 const STORAGE_KEY = "bbt.history.v1";
 const STORAGE_SETTINGS_KEY = "bbt.settings.v1";
-const APP_VERSION = "20260421-2";
+const APP_VERSION = "20260421-3";
 
 /** @typedef {"free" | "timed"} Mode */
 
@@ -13,6 +13,7 @@ let settings = {
   tempoMax: 7.0, // taps per second
   accelSeconds: 30,
   centerBias: 75,
+  targetLifeSec: 2.0,
 };
 
 const DEFAULTS = {
@@ -49,6 +50,9 @@ const ui = {
 
   centerBias: byId("centerBias"),
   centerBiasLabel: byId("centerBiasLabel"),
+
+  targetLifeSec: byId("targetLifeSec"),
+  targetLifeSecLabel: byId("targetLifeSecLabel"),
 
   startBtn: byId("startBtn"),
   clearHistoryBtn: byId("clearHistoryBtn"),
@@ -125,6 +129,12 @@ function init() {
   ui.centerBias.addEventListener("input", () => {
     settings.centerBias = clampInt(parseInt(ui.centerBias.value, 10), 0, 100);
     ui.centerBiasLabel.textContent = `${settings.centerBias}%`;
+    saveSettings();
+  });
+
+  ui.targetLifeSec.addEventListener("input", () => {
+    settings.targetLifeSec = round1(parseFloat(ui.targetLifeSec.value));
+    ui.targetLifeSecLabel.textContent = `${settings.targetLifeSec.toFixed(1)}s`;
     saveSettings();
   });
 
@@ -233,6 +243,8 @@ function applySettingsToUI() {
   ui.accelSecondsLabel.textContent = `${settings.accelSeconds}s`;
   ui.centerBias.value = String(settings.centerBias);
   ui.centerBiasLabel.textContent = `${settings.centerBias}%`;
+  ui.targetLifeSec.value = String(settings.targetLifeSec);
+  ui.targetLifeSecLabel.textContent = `${Number(settings.targetLifeSec).toFixed(1)}s`;
 }
 
 function loadSettings() {
@@ -247,6 +259,7 @@ function loadSettings() {
       accelSeconds: clampInt(Number(parsed.accelSeconds ?? settings.accelSeconds), 5, 120),
       timedMinutes: clampInt(Number(parsed.timedMinutes ?? settings.timedMinutes), 1, 120),
       centerBias: clampInt(Number(parsed.centerBias ?? settings.centerBias), 0, 100),
+      targetLifeSec: clampNumber(Number(parsed.targetLifeSec ?? settings.targetLifeSec), 0.7, 3.0),
       mode: parsed.mode === "timed" ? "timed" : "free",
     };
   } catch {
@@ -441,9 +454,8 @@ function spawnTarget(now) {
   ui.target.classList.remove("is-hidden");
 
   const elapsed = (now - game.startNow) / 1000;
-  // 指定どおり: ターゲットは 1.0秒で消える（消える前にタッチする仕様）。
-  // DS寄せの段階カーブは後で戻せるが、まず体感を安定させる。
-  const life = 1000; // ms
+  // 消える猶予（秒）は設定可能。DS寄せの調整はここでやる。
+  const life = Math.round(clampNumber(settings.targetLifeSec, 0.7, 3.0) * 1000);
   game.targetDeadline = now + life;
 }
 
