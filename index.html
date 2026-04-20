@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#000000" />
+    <title>Brain Burst Touch</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/bbt-192.png" sizes="192x192" />
+    <link rel="apple-touch-icon" href="./icons/bbt-192.png" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="app" id="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand__name">Brain Burst Touch</div>
+          <div class="brand__sub" id="modeLabel">設定</div>
+        </div>
+        <div class="topbar__actions">
+          <button class="btn btn--ghost" id="goSettingsBtn" type="button" aria-label="設定へ">設定</button>
+        </div>
+      </header>
+
+      <section class="screen screen--active" id="screenSettings" aria-label="設定画面">
+        <div class="panel">
+          <h2 class="panel__title">プレイ設定</h2>
+
+          <div class="grid">
+            <div class="field">
+              <label class="field__label">モード</label>
+              <div class="segmented" role="tablist" aria-label="モード">
+                <button class="segmented__btn is-active" id="modeFreeBtn" type="button" role="tab" aria-selected="true">
+                  フリー
+                </button>
+                <button class="segmented__btn" id="modeTimedBtn" type="button" role="tab" aria-selected="false">
+                  集中
+                </button>
+              </div>
+              <div class="field__hint">集中モードは時間で終了して結果表示。</div>
+            </div>
+
+            <div class="field" id="timedDurationField">
+              <label class="field__label" for="timedMinutes">集中時間</label>
+              <select class="select" id="timedMinutes">
+                <option value="5">5分</option>
+                <option value="10" selected>10分</option>
+                <option value="15">15分</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label class="field__label">最速テンポ（回/秒）</label>
+              <div class="segmented" role="tablist" aria-label="最速テンポプリセット">
+                <button class="segmented__btn" id="tempoLightBtn" type="button" role="tab">ライト</button>
+                <button class="segmented__btn is-active" id="tempoNormalBtn" type="button" role="tab" aria-selected="true">
+                  ノーマル
+                </button>
+                <button class="segmented__btn" id="tempoHardBtn" type="button" role="tab">ハード</button>
+              </div>
+              <div class="field__row">
+                <input id="tempoMax" class="range" type="range" min="3" max="12" step="0.1" value="7" />
+                <div class="field__value" id="tempoMaxLabel">7.0</div>
+              </div>
+              <div class="field__hint">プリセットを押してから微調整できます。</div>
+            </div>
+
+            <div class="field">
+              <label class="field__label">加速（最速到達まで）</label>
+              <div class="segmented" role="tablist" aria-label="加速プリセット">
+                <button class="segmented__btn" id="accelFastBtn" type="button" role="tab">即最速</button>
+                <button class="segmented__btn is-active" id="accelStdBtn" type="button" role="tab" aria-selected="true">
+                  標準
+                </button>
+                <button class="segmented__btn" id="accelSlowBtn" type="button" role="tab">じわ上げ</button>
+              </div>
+              <div class="field__row">
+                <input id="accelSeconds" class="range" type="range" min="5" max="120" step="1" value="30" />
+                <div class="field__value" id="accelSecondsLabel">30s</div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="field__label">出現範囲（中央寄り）</label>
+              <div class="field__row">
+                <input id="centerBias" class="range" type="range" min="0" max="100" step="1" value="75" />
+                <div class="field__value" id="centerBiasLabel">75%</div>
+              </div>
+              <div class="field__hint">100%に近いほど中央付近に出ます。</div>
+            </div>
+
+            <div class="field">
+              <label class="field__label">終了操作</label>
+              <div class="field__hint">画面の「終了」を長押し、またはEscキー。</div>
+            </div>
+          </div>
+
+          <div class="panel__actions">
+            <button class="btn btn--primary" id="startBtn" type="button">スタート</button>
+          </div>
+        </div>
+
+        <div class="panel panel--sub">
+          <div class="panel__row">
+            <div class="panel__meta">
+              <div class="panel__title panel__title--small">履歴（セッション）</div>
+              <div class="panel__hint">この端末のブラウザに保存されます。</div>
+            </div>
+            <button class="btn btn--ghost" id="clearHistoryBtn" type="button">消去</button>
+          </div>
+          <ol class="history" id="historyList"></ol>
+        </div>
+      </section>
+
+      <section class="screen" id="screenPlay" aria-label="プレイ画面">
+        <div class="hud">
+          <div class="hud__left">
+            <div class="hud__stat">
+              <div class="hud__label">タップ</div>
+              <div class="hud__value" id="tapCount">0</div>
+            </div>
+            <div class="hud__stat">
+              <div class="hud__label">実テンポ</div>
+              <div class="hud__value"><span id="actualTempo">0.0</span><span class="hud__unit">回/秒</span></div>
+            </div>
+          </div>
+          <div class="hud__right">
+            <div class="hud__stat">
+              <div class="hud__label">目標</div>
+              <div class="hud__value"><span id="targetTempo">0.0</span><span class="hud__unit">回/秒</span></div>
+            </div>
+            <div class="hud__stat">
+              <div class="hud__label">時間</div>
+              <div class="hud__value"><span id="timeLeft">--:--</span></div>
+            </div>
+          </div>
+        </div>
+
+        <button class="exitHold" id="exitHoldBtn" type="button" aria-label="終了（長押し）">
+          終了（長押し）
+          <span class="exitHold__bar" aria-hidden="true"><span class="exitHold__fill" id="exitHoldFill"></span></span>
+        </button>
+
+        <div class="arena" id="arena" aria-label="タップエリア">
+          <button class="target" id="target" type="button" aria-label="ターゲット"></button>
+        </div>
+      </section>
+
+      <section class="screen" id="screenResult" aria-label="結果画面">
+        <div class="panel">
+          <h2 class="panel__title">結果</h2>
+          <div class="resultGrid">
+            <div class="resultItem">
+              <div class="resultItem__label">総タップ</div>
+              <div class="resultItem__value" id="rTotal">0</div>
+            </div>
+            <div class="resultItem">
+              <div class="resultItem__label">平均テンポ</div>
+              <div class="resultItem__value"><span id="rAvg">0.0</span><span class="resultItem__unit">回/秒</span></div>
+            </div>
+            <div class="resultItem">
+              <div class="resultItem__label">最高テンポ</div>
+              <div class="resultItem__value"><span id="rBest">0.0</span><span class="resultItem__unit">回/秒</span></div>
+            </div>
+            <div class="resultItem">
+              <div class="resultItem__label">最速到達</div>
+              <div class="resultItem__value" id="rReach">--</div>
+            </div>
+            <div class="resultItem">
+              <div class="resultItem__label">モード</div>
+              <div class="resultItem__value" id="rMode">--</div>
+            </div>
+          </div>
+
+          <div class="panel__actions">
+            <button class="btn btn--primary" id="playAgainBtn" type="button">もう一回</button>
+            <button class="btn btn--ghost" id="backToSettingsBtn" type="button">設定へ</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>
