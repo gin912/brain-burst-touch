@@ -208,17 +208,18 @@ body{
 
 .hud{
   display:flex;
-  justify-content:space-between;
+  justify-content:flex-start;
   gap: 12px;
   align-items:flex-start;
 }
-.hud__left,.hud__right{ display:flex; gap: 10px; }
+.hud__left{ display:flex; gap: 10px; flex-wrap: wrap; }
 .hud__stat{
   background: rgba(0,0,0,.35);
   border: 1px solid rgba(38,38,55,.7);
   border-radius: 14px;
   padding: 10px 12px;
-  min-width: 120px;
+  min-width: 0;
+  flex: 0 0 auto;
 }
 .hud__label{ color: var(--muted); font-size: 11px; }
 .hud__value{
@@ -232,7 +233,7 @@ body{
 .arena{
   position: relative;
   flex:1;
-  height: calc(100svh - 170px);
+  height: calc(100svh - 150px);
   min-height: 420px;
   border-radius: 22px;
   border: 1px solid rgba(38,38,55,.6);
@@ -340,8 +341,8 @@ body{
 
 @media (max-width: 520px){
   .hud{ flex-direction:column; align-items:stretch; }
-  .hud__left,.hud__right{ justify-content:space-between; }
-  .hud__stat{ min-width: 0; flex: 1; }
-  .arena{ height: calc(100svh - 240px); min-height: 380px; }
+  .hud__left{ justify-content:flex-start; }
+  .hud__stat{ min-width: 0; flex: 0 0 auto; }
+  .arena{ height: calc(100svh - 190px); min-height: 380px; }
 }
 

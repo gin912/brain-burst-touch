@@ -2,13 +2,13 @@
 
 const STORAGE_KEY = "bbt.history.v1";
 const STORAGE_SETTINGS_KEY = "bbt.settings.v1";
-const APP_VERSION = "20260421-7";
+const APP_VERSION = "20260421-8";
 const HIT_FEEDBACK_MS = 60;
 const MISS_FEEDBACK_MS = 60;
 
 /** @typedef {"free" | "timed"} Mode */
 
-/** @type {{mode: Mode, timedMinutes: number, tempoMax: number, accelSeconds: number, centerBias: number, targetLifeSec: number, maxReds: number, whiteHoldSec: number}} */
+/** @type {{mode: Mode, timedMinutes: number, tempoMax: number, accelSeconds: number, centerBias: number, targetLifeSec: number, maxReds: number, whiteHoldSec: number, targetSizePx: number}} */
 let settings = {
   mode: "free",
   timedMinutes: 10,
@@ -18,6 +18,7 @@ let settings = {
   targetLifeSec: 2.0,
   maxReds: 3,
   whiteHoldSec: 0.8,
+  targetSizePx: 72,
 };
 
 const DEFAULTS = {
@@ -64,6 +65,9 @@ const ui = {
   whiteHoldSec: byId("whiteHoldSec"),
   whiteHoldSecLabel: byId("whiteHoldSecLabel"),
 
+  targetSizePx: byId("targetSizePx"),
+  targetSizePxLabel: byId("targetSizePxLabel"),
+
   startBtn: byId("startBtn"),
   clearHistoryBtn: byId("clearHistoryBtn"),
   historyList: byId("historyList"),
@@ -72,9 +76,6 @@ const ui = {
 
   tapCount: byId("tapCount"),
   missCount: byId("missCount"),
-  actualTempo: byId("actualTempo"),
-  targetTempo: byId("targetTempo"),
-  timeLeft: byId("timeLeft"),
 
   exitHoldBtn: byId("exitHoldBtn"),
   exitHoldFill: byId("exitHoldFill"),
@@ -104,6 +105,7 @@ init();
 
 function init() {
   loadSettings();
+  applyTargetSizeCss();
   applySettingsToUI();
   renderHistory();
 
@@ -159,6 +161,13 @@ function init() {
   ui.whiteHoldSec.addEventListener("input", () => {
     settings.whiteHoldSec = clampNumber(parseFloat(ui.whiteHoldSec.value), 0.1, 2.0);
     ui.whiteHoldSecLabel.textContent = `${settings.whiteHoldSec.toFixed(2)}s`;
+    saveSettings();
+  });
+
+  ui.targetSizePx.addEventListener("input", () => {
+    settings.targetSizePx = clampInt(parseInt(ui.targetSizePx.value, 10), 44, 120);
+    ui.targetSizePxLabel.textContent = String(settings.targetSizePx);
+    applyTargetSizeCss();
     saveSettings();
   });
 
@@ -281,6 +290,8 @@ function applySettingsToUI() {
   ui.maxRedsLabel.textContent = String(settings.maxReds);
   ui.whiteHoldSec.value = String(settings.whiteHoldSec);
   ui.whiteHoldSecLabel.textContent = `${Number(settings.whiteHoldSec).toFixed(2)}s`;
+  ui.targetSizePx.value = String(settings.targetSizePx);
+  ui.targetSizePxLabel.textContent = String(settings.targetSizePx);
 }
 
 function loadSettings() {
@@ -298,6 +309,7 @@ function loadSettings() {
       targetLifeSec: clampNumber(Number(parsed.targetLifeSec ?? settings.targetLifeSec), 0.1, 3.0),
       maxReds: clampInt(Number(parsed.maxReds ?? settings.maxReds), 1, 6),
       whiteHoldSec: clampNumber(Number(parsed.whiteHoldSec ?? settings.whiteHoldSec), 0.1, 2.0),
+      targetSizePx: clampInt(Number(parsed.targetSizePx ?? settings.targetSizePx), 44, 120),
       mode: parsed.mode === "timed" ? "timed" : "free",
     };
   } catch {
@@ -338,9 +350,6 @@ function startGame() {
 
   ui.tapCount.textContent = "0";
   ui.missCount.textContent = "0";
-  ui.actualTempo.textContent = "0.0";
-  ui.targetTempo.textContent = "0.0";
-  ui.timeLeft.textContent = settings.mode === "timed" ? fmtMs(game.endNow - game.startNow) : "--:--";
   ui.exitHoldFill.style.width = "0%";
 
   clearArena();
@@ -445,7 +454,6 @@ function loop(now) {
 
   if (game.endNow != null) {
     const remain = game.endNow - now;
-    ui.timeLeft.textContent = fmtMs(Math.max(0, remain));
     if (remain <= 0) {
       finishGame("time");
       return;
@@ -454,7 +462,6 @@ function loop(now) {
 
   const elapsed = (now - game.startNow) / 1000;
   const tTempo = tempoAt(elapsed);
-  ui.targetTempo.textContent = tTempo.toFixed(1);
 
   if (game.reachMaxAtMs == null && tTempo >= settings.tempoMax - 0.05) {
     game.reachMaxAtMs = now - game.startNow;
@@ -541,10 +548,7 @@ function onHit(id, btn) {
     if (dt > 0) {
       const inst = 1000 / dt;
       game.bestTempo = Math.max(game.bestTempo, inst);
-      ui.actualTempo.textContent = round1(inst).toFixed(1);
     }
-  } else {
-    ui.actualTempo.textContent = "0.0";
   }
   game.lastHitTime = now;
 
@@ -587,6 +591,11 @@ function pulseHaptic() {
   } catch {
     // ignore
   }
+}
+
+function applyTargetSizeCss() {
+  const px = clampInt(settings.targetSizePx, 44, 120);
+  document.documentElement.style.setProperty("--targetSize", `${px}px`);
 }
 
 function samplePointAvoidingOverlap() {
