@@ -243,6 +243,16 @@ body{
   left: 50%;
   top: 50%;
 }
+.target.is-hit{
+  background: linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(255,255,255,.85) 100%);
+  box-shadow: 0 10px 32px rgba(255,255,255,.12);
+  border-color: rgba(255,255,255,.45);
+}
+.target.is-missFlash{
+  background: linear-gradient(180deg, rgba(239,68,68,.55) 0%, rgba(239,68,68,.25) 100%);
+  box-shadow: 0 10px 32px rgba(239,68,68,.10);
+  border-color: rgba(239,68,68,.55);
+}
 .target.is-hidden{ display:none; }
 .target:active{ transform: translate(-50%, -50%) scale(.98); }
 

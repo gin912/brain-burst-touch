@@ -56,6 +56,7 @@ const ui = {
   target: byId("target"),
 
   tapCount: byId("tapCount"),
+  missCount: byId("missCount"),
   actualTempo: byId("actualTempo"),
   targetTempo: byId("targetTempo"),
   timeLeft: byId("timeLeft"),
@@ -64,6 +65,7 @@ const ui = {
   exitHoldFill: byId("exitHoldFill"),
 
   rTotal: byId("rTotal"),
+  rMiss: byId("rMiss"),
   rAvg: byId("rAvg"),
   rBest: byId("rBest"),
   rReach: byId("rReach"),
@@ -72,7 +74,7 @@ const ui = {
   backToSettingsBtn: byId("backToSettingsBtn"),
 };
 
-/** @type {{running: boolean, startNow: number, endNow: number | null, targetVisible: boolean, spawnTime: number, nextSpawnTime: number, lastHitTime: number | null, firstHitTime: number | null, tapCount: number, bestTempo: number, reachMaxAtMs: number | null, avgTempo: number}} */
+/** @type {{running: boolean, startNow: number, endNow: number | null, targetVisible: boolean, spawnTime: number, targetDeadline: number, nextSpawnTime: number, lastHitTime: number | null, firstHitTime: number | null, tapCount: number, missCount: number, bestTempo: number, reachMaxAtMs: number | null, avgTempo: number}} */
 let game = resetGame();
 
 let rafId = 0;
@@ -259,10 +261,12 @@ function resetGame() {
     endNow: null,
     targetVisible: false,
     spawnTime: 0,
+    targetDeadline: 0,
     nextSpawnTime: 0,
     lastHitTime: null,
     firstHitTime: null,
     tapCount: 0,
+    missCount: 0,
     bestTempo: 0,
     reachMaxAtMs: null,
     avgTempo: 0,
@@ -279,11 +283,13 @@ function startGame() {
   game.nextSpawnTime = game.startNow;
 
   ui.tapCount.textContent = "0";
+  ui.missCount.textContent = "0";
   ui.actualTempo.textContent = "0.0";
   ui.targetTempo.textContent = "0.0";
   ui.timeLeft.textContent = settings.mode === "timed" ? fmtMs(game.endNow - game.startNow) : "--:--";
   ui.exitHoldFill.style.width = "0%";
 
+  ui.target.classList.remove("is-hit", "is-missFlash");
   ui.target.classList.add("is-hidden");
   showScreen("play");
   startLoop();
@@ -305,6 +311,7 @@ function finishGame(reason) {
 
 function showResult(s) {
   ui.rTotal.textContent = String(s.totalTaps);
+  ui.rMiss.textContent = String(s.missCount);
   ui.rAvg.textContent = s.avgTempo.toFixed(1);
   ui.rBest.textContent = s.bestTempo.toFixed(1);
   ui.rReach.textContent = s.reachMaxAt ? fmtSeconds(s.reachMaxAt) : "—";
@@ -322,6 +329,7 @@ function computeSummary() {
     mode: settings.mode,
     modeLabel,
     totalTaps,
+    missCount: game.missCount,
     avgTempo: round1(avgTempo),
     bestTempo: round1(game.bestTempo),
     tempoMax: settings.tempoMax,
@@ -364,7 +372,7 @@ function renderHistory() {
     const li = document.createElement("li");
     li.className = "historyItem";
     const when = new Date(h.at).toLocaleString();
-    li.innerHTML = `<div><strong>${escapeHtml(h.modeLabel)}</strong> — タップ ${h.totalTaps} / 平均 ${Number(h.avgTempo).toFixed(1)} / 最高 ${Number(h.bestTempo).toFixed(1)}</div>
+    li.innerHTML = `<div><strong>${escapeHtml(h.modeLabel)}</strong> — タップ ${h.totalTaps} / ミス ${Number(h.missCount ?? 0)} / 平均 ${Number(h.avgTempo).toFixed(1)} / 最高 ${Number(h.bestTempo).toFixed(1)}</div>
       <div class="historyItem__meta">${escapeHtml(when)} ・ 最速 ${Number(h.tempoMax).toFixed(1)}回/秒 ・ 加速 ${h.accelSeconds}s ・ 中央 ${h.centerBias}%</div>`;
     ui.historyList.appendChild(li);
   }
@@ -402,6 +410,9 @@ function loop(now) {
   if (!game.targetVisible && now >= game.nextSpawnTime) {
     spawnTarget(now);
   }
+  if (game.targetVisible && now >= game.targetDeadline) {
+    onMiss(now);
+  }
 
   rafId = requestAnimationFrame(loop);
 }
@@ -418,11 +429,18 @@ function tempoAt(elapsedSeconds) {
 function spawnTarget(now) {
   game.targetVisible = true;
   game.spawnTime = now;
+  ui.target.classList.remove("is-hit", "is-missFlash");
 
   const { x, y } = samplePointInArena();
   ui.target.style.left = `${x}px`;
   ui.target.style.top = `${y}px`;
   ui.target.classList.remove("is-hidden");
+
+  const elapsed = (now - game.startNow) / 1000;
+  const tTempo = tempoAt(elapsed);
+  const interval = 1000 / Math.max(0.1, tTempo);
+  const life = clampNumber(interval * 1.1, 250, 1200);
+  game.targetDeadline = now + life;
 }
 
 function onHit() {
@@ -430,8 +448,6 @@ function onHit() {
   const elapsed = (now - game.startNow) / 1000;
   const currentTargetTempo = tempoAt(elapsed);
   const interval = 1000 / Math.max(0.1, currentTargetTempo);
-  const lateness = now - game.spawnTime;
-  const wait = Math.max(0, interval - lateness);
 
   game.tapCount += 1;
   ui.tapCount.textContent = String(game.tapCount);
@@ -449,10 +465,32 @@ function onHit() {
   }
   game.lastHitTime = now;
 
-  // Hide instantly; next spawn respects wait (but if user was late, it becomes immediate).
+  // DS寄せ: ヒットで白に変えてから次へ（体感はほぼ即）
   game.targetVisible = false;
-  ui.target.classList.add("is-hidden");
-  game.nextSpawnTime = now + wait;
+  ui.target.classList.add("is-hit");
+  const delay = 50;
+  setTimeout(() => {
+    ui.target.classList.add("is-hidden");
+    ui.target.classList.remove("is-hit");
+  }, delay);
+  game.nextSpawnTime = now + Math.max(0, interval - (now - game.spawnTime));
+}
+
+function onMiss(now) {
+  if (!game.running || !game.targetVisible) return;
+  game.missCount += 1;
+  ui.missCount.textContent = String(game.missCount);
+  game.targetVisible = false;
+
+  ui.target.classList.add("is-missFlash");
+  const delay = 70;
+  setTimeout(() => {
+    ui.target.classList.add("is-hidden");
+    ui.target.classList.remove("is-missFlash");
+  }, delay);
+
+  // Missしたら即次（テンポ維持）
+  game.nextSpawnTime = now;
 }
 
 function samplePointInArena() {
