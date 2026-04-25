@@ -2,7 +2,7 @@
 
 const STORAGE_KEY = "bbt.history.v1";
 const STORAGE_SETTINGS_KEY = "bbt.settings.v1";
-const APP_VERSION = "20260421-11";
+const APP_VERSION = "20260421-12";
 const HIT_FEEDBACK_MS = 60;
 const MISS_FEEDBACK_MS = 60;
 
@@ -101,6 +101,10 @@ let holdTimer = null;
 let holdStart = 0;
 const HOLD_MS = 900;
 
+/** @type {HTMLAudioElement | null} */
+let spawnSfx = null;
+let audioUnlocked = false;
+
 init();
 
 function init() {
@@ -110,6 +114,34 @@ function init() {
   renderHistory();
 
   ui.versionLabel.textContent = `v${APP_VERSION}`;
+
+  // Mobile autoplay policies: unlock audio on first user gesture.
+  const unlockAudio = () => {
+    if (audioUnlocked) return;
+    try {
+      if (!spawnSfx) spawnSfx = new Audio("./assets/sfx/spawn.wav");
+      spawnSfx.volume = 0.0001;
+      const p = spawnSfx.play();
+      if (p && typeof p.then === "function") {
+        p.then(() => {
+          spawnSfx.pause();
+          spawnSfx.currentTime = 0;
+          spawnSfx.volume = 1.0;
+          audioUnlocked = true;
+        }).catch(() => {
+          // still locked; will retry on next gesture
+        });
+      } else {
+        spawnSfx.pause();
+        spawnSfx.currentTime = 0;
+        spawnSfx.volume = 1.0;
+        audioUnlocked = true;
+      }
+    } catch {
+      // ignore
+    }
+  };
+  window.addEventListener("pointerdown", unlockAudio, { passive: true, capture: true });
 
   ui.goSettingsBtn.addEventListener("click", () => showScreen("settings"));
 
@@ -171,7 +203,10 @@ function init() {
     saveSettings();
   });
 
-  ui.startBtn.addEventListener("click", startGame);
+  ui.startBtn.addEventListener("click", () => {
+    unlockAudio();
+    startGame();
+  });
 
   ui.arena.addEventListener("pointerdown", (e) => {
     const t = /** @type {HTMLElement|null} */ (e.target);
@@ -524,6 +559,7 @@ function spawnRed(now) {
   });
   game.targets.set(id, st);
   ui.arena.appendChild(el);
+  playSpawnSfx();
 }
 
 function expireTargets(now) {
@@ -591,6 +627,33 @@ function removeTarget(t) {
 function pulseHaptic() {
   try {
     if (navigator.vibrate) navigator.vibrate(10);
+  } catch {
+    // ignore
+  }
+}
+
+function playSpawnSfx() {
+  try {
+    if (!spawnSfx) spawnSfx = new Audio("./assets/sfx/spawn.wav");
+    // clone lets overlapping spawns overlap cleanly
+    const a = spawnSfx.cloneNode(true);
+    a.volume = 1.0;
+    const p = a.play();
+    if (p && typeof p.catch === "function") p.catch(() => {});
+    // cleanup element after play
+    a.addEventListener(
+      "ended",
+      () => {
+        try {
+          a.removeAttribute("src");
+          // @ts-ignore
+          a.load?.();
+        } catch {
+          // ignore
+        }
+      },
+      { once: true },
+    );
   } catch {
     // ignore
   }
