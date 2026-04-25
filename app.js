@@ -2,7 +2,7 @@
 
 const STORAGE_KEY = "bbt.history.v1";
 const STORAGE_SETTINGS_KEY = "bbt.settings.v1";
-const APP_VERSION = "20260421-12";
+const APP_VERSION = "20260421-13";
 const HIT_FEEDBACK_MS = 60;
 const MISS_FEEDBACK_MS = 60;
 
@@ -103,6 +103,8 @@ const HOLD_MS = 900;
 
 /** @type {HTMLAudioElement | null} */
 let spawnSfx = null;
+/** @type {HTMLAudioElement | null} */
+let successSfx = null;
 let audioUnlocked = false;
 
 init();
@@ -120,22 +122,36 @@ function init() {
     if (audioUnlocked) return;
     try {
       if (!spawnSfx) spawnSfx = new Audio("./assets/sfx/spawn.wav");
+      if (!successSfx) successSfx = new Audio("./assets/sfx/success.mp3");
       spawnSfx.volume = 0.0001;
-      const p = spawnSfx.play();
-      if (p && typeof p.then === "function") {
-        p.then(() => {
+      successSfx.volume = 0.0001;
+      const p1 = spawnSfx.play();
+      const p2 = successSfx.play();
+      const settle = () => {
+        try {
           spawnSfx.pause();
           spawnSfx.currentTime = 0;
           spawnSfx.volume = 1.0;
-          audioUnlocked = true;
-        }).catch(() => {
+        } catch {
+          // ignore
+        }
+        try {
+          successSfx.pause();
+          successSfx.currentTime = 0;
+          successSfx.volume = 1.0;
+        } catch {
+          // ignore
+        }
+        audioUnlocked = true;
+      };
+
+      const ps = [p1, p2].filter(Boolean);
+      if (ps.length && ps.every((p) => typeof p.then === "function")) {
+        Promise.all(ps).then(settle).catch(() => {
           // still locked; will retry on next gesture
         });
       } else {
-        spawnSfx.pause();
-        spawnSfx.currentTime = 0;
-        spawnSfx.volume = 1.0;
-        audioUnlocked = true;
+        settle();
       }
     } catch {
       // ignore
@@ -577,6 +593,7 @@ function onHit(id, btn) {
   if (!t || t.state !== "red") return;
   const now = performance.now();
   pulseHaptic();
+  playSuccessSfx();
 
   game.tapCount += 1;
   ui.tapCount.textContent = String(game.tapCount);
@@ -641,6 +658,31 @@ function playSpawnSfx() {
     const p = a.play();
     if (p && typeof p.catch === "function") p.catch(() => {});
     // cleanup element after play
+    a.addEventListener(
+      "ended",
+      () => {
+        try {
+          a.removeAttribute("src");
+          // @ts-ignore
+          a.load?.();
+        } catch {
+          // ignore
+        }
+      },
+      { once: true },
+    );
+  } catch {
+    // ignore
+  }
+}
+
+function playSuccessSfx() {
+  try {
+    if (!successSfx) successSfx = new Audio("./assets/sfx/success.mp3");
+    const a = successSfx.cloneNode(true);
+    a.volume = 1.0;
+    const p = a.play();
+    if (p && typeof p.catch === "function") p.catch(() => {});
     a.addEventListener(
       "ended",
       () => {
