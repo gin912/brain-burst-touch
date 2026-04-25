@@ -2,7 +2,7 @@
 
 const STORAGE_KEY = "bbt.history.v1";
 const STORAGE_SETTINGS_KEY = "bbt.settings.v1";
-const APP_VERSION = "20260421-13";
+const APP_VERSION = "20260421-14";
 const HIT_FEEDBACK_MS = 60;
 const MISS_FEEDBACK_MS = 60;
 
@@ -105,6 +105,8 @@ const HOLD_MS = 900;
 let spawnSfx = null;
 /** @type {HTMLAudioElement | null} */
 let successSfx = null;
+/** @type {HTMLAudioElement | null} */
+let despawnSfx = null;
 let audioUnlocked = false;
 
 init();
@@ -123,10 +125,13 @@ function init() {
     try {
       if (!spawnSfx) spawnSfx = new Audio("./assets/sfx/spawn.wav");
       if (!successSfx) successSfx = new Audio("./assets/sfx/success.mp3");
+      if (!despawnSfx) despawnSfx = new Audio("./assets/sfx/despawn.wav");
       spawnSfx.volume = 0.0001;
       successSfx.volume = 0.0001;
+      despawnSfx.volume = 0.0001;
       const p1 = spawnSfx.play();
       const p2 = successSfx.play();
+      const p3 = despawnSfx.play();
       const settle = () => {
         try {
           spawnSfx.pause();
@@ -142,10 +147,17 @@ function init() {
         } catch {
           // ignore
         }
+        try {
+          despawnSfx.pause();
+          despawnSfx.currentTime = 0;
+          despawnSfx.volume = 1.0;
+        } catch {
+          // ignore
+        }
         audioUnlocked = true;
       };
 
-      const ps = [p1, p2].filter(Boolean);
+      const ps = [p1, p2, p3].filter(Boolean);
       if (ps.length && ps.every((p) => typeof p.then === "function")) {
         Promise.all(ps).then(settle).catch(() => {
           // still locked; will retry on next gesture
@@ -633,6 +645,7 @@ function flashMissAndRemove(t) {
 }
 
 function removeTarget(t) {
+  playDespawnSfx();
   game.targets.delete(t.id);
   try {
     t.el.remove();
@@ -680,6 +693,31 @@ function playSuccessSfx() {
   try {
     if (!successSfx) successSfx = new Audio("./assets/sfx/success.mp3");
     const a = successSfx.cloneNode(true);
+    a.volume = 1.0;
+    const p = a.play();
+    if (p && typeof p.catch === "function") p.catch(() => {});
+    a.addEventListener(
+      "ended",
+      () => {
+        try {
+          a.removeAttribute("src");
+          // @ts-ignore
+          a.load?.();
+        } catch {
+          // ignore
+        }
+      },
+      { once: true },
+    );
+  } catch {
+    // ignore
+  }
+}
+
+function playDespawnSfx() {
+  try {
+    if (!despawnSfx) despawnSfx = new Audio("./assets/sfx/despawn.wav");
+    const a = despawnSfx.cloneNode(true);
     a.volume = 1.0;
     const p = a.play();
     if (p && typeof p.catch === "function") p.catch(() => {});
