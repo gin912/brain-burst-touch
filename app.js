@@ -2,7 +2,7 @@
 
 const STORAGE_KEY = "bbt.history.v1";
 const STORAGE_SETTINGS_KEY = "bbt.settings.v1";
-const APP_VERSION = "20260421-14";
+const APP_VERSION = "20260421-15";
 const HIT_FEEDBACK_MS = 60;
 const MISS_FEEDBACK_MS = 60;
 
@@ -629,23 +629,30 @@ function onHit(id, btn) {
   setTimeout(() => {
     const cur = game.targets.get(token);
     if (!cur || cur.state !== "white") return;
-    removeTarget(cur);
+    removeTarget(cur, { sfx: false });
   }, holdMs);
 }
 
 function flashMissAndRemove(t) {
   t.state = "white";
   t.el.classList.add("is-missFlash");
+  // 自然消滅（押さずに消える）だけ消える音
+  playDespawnSfx();
   const token = t.id;
   setTimeout(() => {
     const cur = game.targets.get(token);
     if (!cur) return;
-    removeTarget(cur);
+    removeTarget(cur, { sfx: false });
   }, MISS_FEEDBACK_MS);
 }
 
-function removeTarget(t) {
-  playDespawnSfx();
+/**
+ * @param {TargetState} t
+ * @param {{ sfx?: boolean }} [opts]
+ */
+function removeTarget(t, opts) {
+  const sfx = opts?.sfx ?? false;
+  if (sfx) playDespawnSfx();
   game.targets.delete(t.id);
   try {
     t.el.remove();
